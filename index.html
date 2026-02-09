@@ -3,97 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>智能排班 V2.4 - 請假點亮版</title>
+    <title>智能排班 V2.5 - 2026 實戰版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { background-color: #0b1120; color: #f1f5f9; font-family: system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
         .card { background-color: #1e293b; border-radius: 12px; padding: 0.75rem; border: 1px solid #334155; }
-        .slot { width: 16px; height: 16px; border-radius: 4px; border: 1px solid #475569; cursor: pointer; transition: 0.2s; }
-        /* 點亮代表請假 - 使用橘紅色 */
-        .slot.active { background-color: #fb7185; border-color: #fb7185; box-shadow: 0 0 8px rgba(251, 113, 133, 0.4); }
-        .shift-tag { font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; background: #0f172a; color: #94a3b8; min-width: 50px; text-align: center; border: 1px solid transparent; }
-        .shift-tag.filled { color: #38bdf8; border-color: #38bdf8; }
+        .slot { width: 18px; height: 18px; border-radius: 4px; border: 1px solid #475569; cursor: pointer; transition: 0.2s; position: relative; }
+        /* 點亮代表請假 - 橘色 */
+        .slot.active { background-color: #f59e0b; border-color: #fbbf24; box-shadow: 0 0 10px rgba(245, 158, 11, 0.3); }
+        .slot.active::after { content: '休'; font-size: 10px; color: #0f172a; position: absolute; left: 1px; top: -1px; font-weight: 900; }
+        
+        .shift-tag { font-size: 10px; font-weight: 800; padding: 2px 4px; border-radius: 4px; background: #0f172a; color: #64748b; border: 1px solid transparent; }
+        .shift-tag.filled { color: #38bdf8; border-color: #38bdf8/50; background: rgba(56, 189, 248, 0.1); }
+        .sun-row { opacity: 0.5; background-color: #111827; pointer-events: none; }
+        .sat-row { border-left: 4px solid #fb7185; }
         .btn-magic { background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%); }
     </style>
 </head>
 <body class="p-4 pb-24">
     <div class="max-w-md mx-auto space-y-4">
         
-        <div class="flex justify-between items-end mb-4">
+        <div class="flex justify-between items-center">
             <div>
-                <h1 class="text-xl font-black text-white italic tracking-tighter">OFF-DUTY SCHEDULER</h1>
-                <p class="text-[9px] text-rose-400 font-bold uppercase">點亮小格 = 該時段請假</p>
+                <h1 class="text-xl font-black text-white italic tracking-tighter">2026 FEB SCHEDULER</h1>
+                <p class="text-[9px] text-amber-400 font-bold uppercase tracking-widest">橘色 = 該時段不排班 (請假)</p>
             </div>
-            <button onclick="autoFillAll()" class="btn-magic text-white text-[10px] font-black px-4 py-2 rounded-lg shadow-lg">
-                ✨ 避開請假自動排班
+            <button onclick="autoFillAll()" class="btn-magic text-white text-[10px] font-black px-4 py-3 rounded-xl shadow-lg active:scale-95 transition-transform">
+                ✨ 一鍵填補空缺
             </button>
         </div>
 
-        <div id="staff_header" class="flex gap-4 justify-around py-2 border-y border-slate-800 mb-2">
-            </div>
-
-        <div id="list_container" class="space-y-2">
-            </div>
+        <div id="list_container" class="space-y-3"></div>
     </div>
 
-    <div class="fixed bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur-md p-3 border-t border-slate-700 z-50">
+    <div class="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md p-3 border-t border-slate-700 z-50">
         <div id="t_stats" class="max-w-md mx-auto flex justify-around text-[10px] font-black text-indigo-400"></div>
     </div>
 
     <script>
         const staffList = ["A", "B", "C", "D", "E"];
-        let db = JSON.parse(localStorage.getItem('monthly_schedule_v2.4')) || {};
+        let db = JSON.parse(localStorage.getItem('monthly_schedule_v2.5')) || {};
 
         function getDow(d) {
-            // 2026/2/1 是週日
-            return ["日", "一", "二", "三", "四", "五", "六"][d % 7];
-        }
-
-        function initHeader() {
-            const header = document.getElementById('staff_header');
-            header.innerHTML = staffList.map(n => `<span class="text-[10px] font-bold text-slate-400">${n}</span>`).join('');
+            // 2026/2/1 是週日 (Index 0)
+            const date = new Date(2026, 1, d); // Month is 0-indexed, 1 = Feb
+            return date.getDay();
         }
 
         function render() {
             const container = document.getElementById('list_container');
             container.innerHTML = '';
+            const dowNames = ["日", "一", "二", "三", "四", "五", "六"];
 
             for (let d = 1; d <= 28; d++) {
                 const dow = getDow(d);
                 const dayData = db[d] || { userOff: {}, finalShifts: {} };
+                const isSun = (dow === 0);
+                const isSat = (dow === 6);
                 
                 const row = document.createElement('div');
-                row.className = "card";
+                row.className = `card ${isSun ? 'sun-row' : ''} ${isSat ? 'sat-row' : ''}`;
                 
-                let staffHtml = staffList.map(name => {
-                    const offSlots = dayData.userOff[name] || [false, false, false];
+                let staffGrid = staffList.map(name => {
+                    const off = dayData.userOff[name] || [false, false, false];
                     return `
                         <div class="flex flex-col items-center gap-1">
-                            <div class="flex flex-col gap-1.5">
-                                <div class="slot ${offSlots[0]?'active':''}" onclick="toggleOff(${d}, '${name}', 0)"></div>
-                                <div class="slot ${offSlots[1]?'active':''}" onclick="toggleOff(${d}, '${name}', 1)"></div>
-                                <div class="slot ${offSlots[2]?'active':''}" onclick="toggleOff(${d}, '${name}', 2)"></div>
+                            <span class="text-[8px] font-bold text-slate-500">${name}</span>
+                            <div class="flex flex-col gap-1">
+                                <div class="slot ${off[0]?'active':''}" onclick="toggleOff(${d}, '${name}', 0)"></div>
+                                <div class="slot ${off[1]?'active':''}" onclick="toggleOff(${d}, '${name}', 1)"></div>
+                                <div class="slot ${off[2]?'active':''}" onclick="toggleOff(${d}, '${name}', 2)"></div>
                             </div>
                         </div>
                     `;
                 }).join('');
 
-                const shifts = dayData.finalShifts || {};
+                const fs = dayData.finalShifts || {};
 
                 row.innerHTML = `
-                    <div class="flex justify-between items-center mb-2 border-b border-slate-700 pb-2">
-                        <div class="flex items-center gap-2">
-                            <span class="text-lg font-black ${dow==='六'?'text-rose-400':'text-white'}">${d}</span>
-                            <span class="text-[10px] font-bold text-slate-500">${dow}</span>
+                    <div class="flex justify-between items-start">
+                        <div class="flex flex-col">
+                            <div class="flex items-baseline gap-1">
+                                <span class="text-xl font-black ${isSun?'text-slate-600':isSat?'text-rose-400':'text-white'}">${d}</span>
+                                <span class="text-[10px] font-bold text-slate-500">${dowNames[dow]}</span>
+                            </div>
+                            <div class="mt-2 space-y-1">
+                                <div class="shift-tag ${fs.M?'filled':''} px-1">早: ${fs.M||'--'}</div>
+                                <div class="shift-tag ${fs.A?'filled':''} px-1">午: ${fs.A||'--'}</div>
+                                <div class="shift-tag ${fs.E?'filled':''} px-1">晚: ${fs.E||'--'}</div>
+                                ${isSat ? `<div class="shift-tag filled border-rose-900/30 text-[9px]">補:${fs.S||'--'}</div>` : ''}
+                            </div>
                         </div>
-                        <div class="flex gap-1">
-                            <div class="shift-tag ${shifts['M']?'filled':''}">早:${shifts['M']||'--'}</div>
-                            <div class="shift-tag ${shifts['A']?'filled':''}">午:${shifts['A']||'--'}</div>
-                            <div class="shift-tag ${shifts['E']?'filled':''}">晚:${shifts['E']||'--'}</div>
+                        <div class="flex-1 flex justify-around ml-4 border-l border-slate-700/50 pl-2">
+                            ${isSun ? '<span class="text-xs font-black text-slate-700 mt-4">STORE CLOSED</span>' : staffGrid}
                         </div>
-                    </div>
-                    <div class="flex justify-around">
-                        ${staffHtml}
                     </div>
                 `;
                 container.appendChild(row);
@@ -104,32 +107,35 @@
         function toggleOff(day, name, slotIdx) {
             if(!db[day]) db[day] = { userOff: {}, finalShifts: {} };
             if(!db[day].userOff[name]) db[day].userOff[name] = [false, false, false];
-            
             db[day].userOff[name][slotIdx] = !db[day].userOff[name][slotIdx];
-            localStorage.setItem('monthly_schedule_v2.4', JSON.stringify(db));
+            localStorage.setItem('monthly_schedule_v2.5', JSON.stringify(db));
             render();
         }
 
         function autoFillAll() {
             for(let d=1; d<=28; d++) {
+                const dow = getDow(d);
+                if(dow === 0) continue; // 週日不排班
+
                 if(!db[d]) db[d] = { userOff: {}, finalShifts: {} };
                 let userOff = db[d].userOff;
                 let dayCount = {};
                 staffList.forEach(n => dayCount[n] = 0);
 
-                let results = { M: null, A: null, E: null };
-                const shiftIndices = { M: 0, A: 1, E: 2 };
+                let results = { M: null, A: null, E: null, S: null };
+                
+                // 排班邏輯：先滿足週六的多人需求，再填平日
+                const shifts = (dow === 6) ? ["M", "A", "E", "S"] : ["M", "A", "E"];
+                const shiftMap = { "M": 0, "A": 1, "E": 2, "S": 1 }; // S支援位通常在午班
 
-                // 填補早、午、晚
-                ["M", "A", "E"].forEach(sKey => {
-                    let sIdx = shiftIndices[sKey];
-                    // 尋找此時段沒有請假(false)的人
+                shifts.forEach(sKey => {
+                    let sIdx = shiftMap[sKey];
                     let available = staffList.filter(name => {
                         const off = userOff[name] || [false, false, false];
-                        return off[sIdx] === false && dayCount[name] < 2;
+                        // 1. 該時段沒請假 2. 一天不超過兩班 3. 同一班次不重複
+                        return off[sIdx] === false && dayCount[name] < 2 && !Object.values(results).includes(name);
                     });
 
-                    // 公平排序：選今天班最少，且本月總班數較少的人
                     available.sort((a, b) => dayCount[a] - dayCount[b]);
 
                     if(available.length > 0) {
@@ -139,7 +145,7 @@
                 });
                 db[d].finalShifts = results;
             }
-            localStorage.setItem('monthly_schedule_v2.4', JSON.stringify(db));
+            localStorage.setItem('monthly_schedule_v2.5', JSON.stringify(db));
             render();
         }
 
@@ -153,7 +159,7 @@
             document.getElementById('t_stats').innerHTML = staffList.map(n => `<span>${n}: ${counts[n]}班</span>`).join('');
         }
 
-        window.onload = () => { initHeader(); render(); };
+        window.onload = render;
     </script>
 </body>
 </html>

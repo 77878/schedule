@@ -3,204 +3,162 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>智能排班 V2.2 - 策略版</title>
+    <title>智能排班 V2.3 - 橫列清單版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { background-color: #0b1120; color: #f1f5f9; font-family: system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
-        .card { background-color: #1e293b; border-radius: 16px; padding: 1rem; border: 1px solid #334155; }
-        .date-btn { 
-            width: 50px; height: 60px; flex-shrink: 0; display: flex; flex-direction: column; 
-            align-items: center; justify-content: center; border-radius: 12px; border: 1px solid #334155;
-            transition: all 0.2s; background: #0f172a;
-        }
-        .date-btn.active { background: #38bdf8; color: #0f172a; border-color: #38bdf8; font-weight: bold; }
-        .staff-tag { padding: 6px; border-radius: 10px; border: 1px solid #475569; font-size: 0.7rem; font-weight: bold; text-align: center; cursor: pointer; }
-        .status-ok { background: rgba(74, 222, 128, 0.1); color: #4ade80; border-color: #4ade80; }
-        .status-off { background: rgba(248, 113, 113, 0.1); color: #f87171; border-color: #f87171; }
-        .status-limit { background: rgba(251, 191, 36, 0.1); color: #fbbf24; border-color: #fbbf24; }
+        .card { background-color: #1e293b; border-radius: 12px; padding: 0.75rem; border: 1px solid #334155; }
+        .day-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #334155; }
+        .slot { width: 14px; height: 14px; border-radius: 3px; border: 1px solid #475569; cursor: pointer; }
+        .slot.active { background-color: #38bdf8; border-color: #38bdf8; box-shadow: 0 0 8px rgba(56, 189, 248, 0.4); }
+        .shift-tag { font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; background: #0f172a; color: #94a3b8; min-width: 45px; text-align: center; }
+        .shift-tag.filled { color: #38bdf8; border: 1px solid #38bdf8/30; }
         .btn-magic { background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%); }
-        .shift-box { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 6px; color: #38bdf8; font-weight: 800; text-align: center; font-size: 0.75rem; }
-        .sat-label { color: #fb7185; font-size: 10px; font-weight: 900; }
     </style>
 </head>
-<body class="p-4 pb-12">
+<body class="p-4 pb-20">
     <div class="max-w-md mx-auto space-y-4">
         
-        <div class="flex justify-between items-center">
+        <div class="flex justify-between items-end mb-4">
             <div>
-                <h1 class="text-xl font-black text-white italic">SCHEDULER V2.2</h1>
-                <p id="day_desc" class="text-[10px] text-slate-400 font-bold">--</p>
+                <h1 class="text-xl font-black text-white italic tracking-tighter">LIST SCHEDULER V2.3</h1>
+                <p class="text-[9px] text-slate-500 font-bold uppercase">點選小格畫班：早 / 午 / 晚</p>
             </div>
-            <button onclick="autoScheduleDay()" class="btn-magic text-white text-[10px] font-black px-4 py-2 rounded-xl uppercase italic shadow-lg">
-                ✨ 執行策略排班
+            <button onclick="autoFillAll()" class="btn-magic text-white text-[10px] font-black px-4 py-2 rounded-lg shadow-lg">
+                ✨ 一鍵填補全月空缺
             </button>
         </div>
 
-        <div class="card overflow-hidden">
-            <div id="calendar_strip" class="flex gap-2 overflow-x-auto pb-2 scrollbar-hide"></div>
+        <div class="flex gap-4 justify-center py-2 border-y border-slate-800 mb-2">
+            ${staffList.map(n => `<span class="text-[10px] font-bold text-slate-400">${n}</span>`).join('')}
         </div>
 
-        <div class="card">
-            <h2 class="text-[10px] font-black text-slate-400 uppercase italic mb-3 tracking-widest">個人限制狀態</h2>
-            <div class="grid grid-cols-5 gap-1" id="staff_constraints"></div>
-        </div>
-
-        <div class="space-y-3" id="display_root">
+        <div id="list_container" class="space-y-1">
             </div>
 
-        <div class="card bg-slate-900/50">
-            <h3 class="text-[10px] font-black text-indigo-400 mb-2">本月外場 (T) 站班累計</h3>
-            <div id="t_stats" class="flex justify-between text-[10px] font-mono"></div>
-        </div>
+    </div>
+
+    <div class="fixed bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur-md p-3 border-t border-slate-700">
+        <div id="t_stats" class="max-w-md mx-auto flex justify-around text-[10px] font-black text-indigo-400"></div>
     </div>
 
     <script>
-        const staffList = ["員工A", "員工B", "員工C", "員工D", "員工E"];
-        const statusTypes = ["可排班", "全休", "限早班", "限午班", "限晚班"];
-        let currentDay = 9; // 2026/2/9 是週一
-        let db = JSON.parse(localStorage.getItem('monthly_schedule_v2.2')) || {};
+        const staffList = ["A", "B", "C", "D", "E"];
+        let db = JSON.parse(localStorage.getItem('monthly_schedule_v2.3')) || {};
 
-        function getDayOfWeek(d) {
-            // 2026/2/1 是週日，所以 (1+d-1)%7
-            const days = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
-            return days[d % 7];
+        function getDow(d) {
+            return ["日", "一", "二", "三", "四", "五", "六"][d % 7];
         }
 
-        function init() {
-            const strip = document.getElementById('calendar_strip');
-            for(let i=1; i<=28; i++) {
-                const btn = document.createElement('div');
-                btn.className = `date-btn`;
-                btn.id = `date_${i}`;
-                const dow = getDayOfWeek(i);
-                btn.innerHTML = `<span class="text-[9px] ${dow==='週六'?'text-rose-400':''}">${dow}</span><span class="text-lg font-black">${i}</span>`;
-                btn.onclick = () => switchDay(i);
-                strip.appendChild(btn);
-            }
-            renderStaffTags();
-            switchDay(currentDay);
-        }
+        function render() {
+            const container = document.getElementById('list_container');
+            container.innerHTML = '';
 
-        function renderStaffTags() {
-            const box = document.getElementById('staff_constraints');
-            box.innerHTML = '';
-            staffList.forEach(name => {
-                const dayData = db[currentDay] || { limits: {} };
-                const status = dayData.limits[name] || "可排班";
-                const div = document.createElement('div');
-                div.className = `staff-tag ${status==='全休'?'status-off':status==='可排班'?'status-ok':'status-limit'}`;
-                div.innerText = `${name}\n${status.replace('限','')}`;
-                div.onclick = () => {
-                    let nextIdx = (statusTypes.indexOf(status) + 1) % statusTypes.length;
-                    if(!db[currentDay]) db[currentDay] = { shifts: {}, limits: {} };
-                    db[currentDay].limits[name] = statusTypes[nextIdx];
-                    switchDay(currentDay);
-                };
-                box.appendChild(div);
-            });
-        }
+            for (let d = 1; d <= 28; d++) {
+                const dow = getDow(d);
+                const dayData = db[d] || { userPicks: {}, finalShifts: {} };
+                
+                const row = document.createElement('div');
+                row.className = "card mb-2";
+                
+                let staffHtml = staffList.map(name => {
+                    const picks = dayData.userPicks[name] || [false, false, false];
+                    return `
+                        <div class="flex flex-col items-center gap-1">
+                            <span class="text-[9px] font-bold text-slate-500">${name}</span>
+                            <div class="flex flex-col gap-1">
+                                <div class="slot ${picks[0]?'active':''}" onclick="toggleSlot(${d}, '${name}', 0)"></div>
+                                <div class="slot ${picks[1]?'active':''}" onclick="toggleSlot(${d}, '${name}', 1)"></div>
+                                <div class="slot ${picks[2]?'active':''}" onclick="toggleSlot(${d}, '${name}', 2)"></div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
 
-        function switchDay(d) {
-            document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById(`date_${d}`).classList.add('active');
-            currentDay = d;
-            const dow = getDayOfWeek(d);
-            document.getElementById('day_desc').innerText = `2月 ${d} 日 (${dow}) 排班計畫`;
-            
-            renderShiftsUI(dow);
-            updateTStats();
-            renderStaffTags();
-            localStorage.setItem('monthly_schedule_v2.2', JSON.stringify(db));
-        }
+                const shifts = dayData.finalShifts || {};
+                const isSat = dow === "週六";
 
-        function renderShiftsUI(dow) {
-            const root = document.getElementById('display_root');
-            const data = db[currentDay]?.shifts || {};
-            
-            // 定義結構：週六早午 4 人，平日全部 3 人，週六晚 2 人
-            let structure = [
-                { label: "早班 (MOR)", color: "sky", keys: (dow==='週六')?["1A","1B","1T","1S"]:["1A","1B","1T"] },
-                { label: "午班 (AFT)", color: "amber", keys: (dow==='週六')?["2A","2B","2T","2S"]:["2A","2B","2T"] },
-                { label: "晚班 (EVE)", color: "indigo", keys: (dow==='週六')?["3A","3B"]:["3A","3B","3T"] }
-            ];
-
-            root.innerHTML = structure.map(s => `
-                <div class="card border-l-4 border-l-${s.color}-500 py-3">
-                    <span class="font-black text-${s.color}-400 text-[10px] uppercase">${s.label}</span>
-                    <div class="grid grid-cols-${s.keys.length} gap-1 mt-2">
-                        ${s.keys.map(k => `<div class="shift-box">${data[k] || '--'}</div>`).join('')}
+                row.innerHTML = `
+                    <div class="flex justify-between items-center mb-2 border-b border-slate-700/50 pb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-lg font-black ${dow==='六'?'text-rose-400':'text-white'}">${d}</span>
+                            <span class="text-[10px] font-bold text-slate-500">${dow}</span>
+                        </div>
+                        <div class="flex gap-1">
+                            <div class="shift-tag ${shifts['M']?'filled':''}">早:${shifts['M']||'--'}</div>
+                            <div class="shift-tag ${shifts['A']?'filled':''}">午:${shifts['A']||'--'}</div>
+                            <div class="shift-tag ${shifts['E']?'filled':''}">晚:${shifts['E']||'--'}</div>
+                        </div>
                     </div>
-                </div>
-            `).join('');
+                    <div class="flex justify-between px-2">
+                        ${staffHtml}
+                    </div>
+                `;
+                container.appendChild(row);
+            }
+            updateTStats();
+        }
+
+        function toggleSlot(day, name, slotIdx) {
+            if(!db[day]) db[day] = { userPicks: {}, finalShifts: {} };
+            if(!db[day].userPicks[name]) db[day].userPicks[name] = [false, false, false];
+            
+            db[day].userPicks[name][slotIdx] = !db[day].userPicks[name][slotIdx];
+            localStorage.setItem('monthly_schedule_v2.3', JSON.stringify(db));
+            render();
+        }
+
+        function autoFillAll() {
+            for(let d=1; d<=28; d++) {
+                const dow = getDow(d);
+                if(!db[d]) db[d] = { userPicks: {}, finalShifts: {} };
+                
+                let picks = db[d].userPicks;
+                let dayCount = {};
+                staffList.forEach(n => dayCount[n] = 0);
+
+                // 統計玩家手動點亮的班
+                let results = { M: null, A: null, E: null };
+                staffList.forEach(n => {
+                    const p = picks[n] || [false, false, false];
+                    if(p[0]) { results.M = n; dayCount[n]++; }
+                    if(p[1]) { results.A = n; dayCount[n]++; }
+                    if(p[2]) { results.E = n; dayCount[n]++; }
+                });
+
+                // 填補剩下沒人的班 (簡易優先級：選今天班最少的人)
+                ["M", "A", "E"].forEach((shift, idx) => {
+                    if(!results[shift]) {
+                        let available = staffList.filter(n => {
+                            const p = picks[n] || [false, false, false];
+                            // 排除「全休」(三格都沒點的人視為全休)
+                            const isOff = p.every(v => v === false);
+                            return !isOff && dayCount[n] < 2;
+                        });
+                        available.sort((a, b) => dayCount[a] - dayCount[b]);
+                        if(available.length > 0) {
+                            results[shift] = available[0];
+                            dayCount[available[0]]++;
+                        }
+                    }
+                });
+                db[d].finalShifts = results;
+            }
+            localStorage.setItem('monthly_schedule_v2.3', JSON.stringify(db));
+            render();
         }
 
         function updateTStats() {
-            const tCounts = {};
-            staffList.forEach(n => tCounts[n] = 0);
+            const counts = {}; staffList.forEach(n => counts[n] = 0);
             Object.values(db).forEach(day => {
-                if(day.shifts) {
-                    ["1T","2T","3T"].forEach(k => { if(day.shifts[k]) tCounts[day.shifts[k]]++; });
+                if(day.finalShifts) {
+                    Object.values(day.finalShifts).forEach(n => { if(n && counts[n]!==undefined) counts[n]++; });
                 }
             });
-            document.getElementById('t_stats').innerHTML = staffList.map(n => `<div>${n}: ${tCounts[n]}</div>`).join('');
-            return tCounts;
+            document.getElementById('t_stats').innerHTML = staffList.map(n => `<span>${n}: ${counts[n]}班</span>`).join('');
         }
 
-        function autoScheduleDay() {
-            if(!db[currentDay]) db[currentDay] = { shifts: {}, limits: {} };
-            const dow = getDayOfWeek(currentDay);
-            const limits = db[currentDay].limits;
-            const tHistory = updateTStats();
-            
-            let result = {};
-            let dayCount = {};
-            staffList.forEach(n => dayCount[n] = 0);
-
-            let shiftConfig = [
-                { label: "限早班", keys: (dow==='週六')?["1A","1B","1T","1S"]:["1A","1B","1T"], tKey: "1T" },
-                { label: "限午班", keys: (dow==='週六')?["2A","2B","2T","2S"]:["2A","2B","2T"], tKey: "2T" },
-                { label: "限晚班", keys: (dow==='週六')?["3A","3B"]:["3A","3B","3T"], tKey: "3T" }
-            ];
-
-            shiftConfig.forEach(shift => {
-                let shiftStaff = [];
-                shift.keys.forEach(key => {
-                    let pool = staffList.filter(n => {
-                        const l = limits[n] || "可排班";
-                        if(l === "全休") return false;
-                        if(l !== "可排班" && l !== shift.label) return false;
-                        if(dayCount[n] >= 2) return false;
-                        if(shiftStaff.includes(n)) return false;
-                        return true;
-                    });
-
-                    // 排序優先級：
-                    // 1. 如果是 T 位：選本月站 T 次數最少的人
-                    // 2. 優先滿足有「限班」要求的人
-                    // 3. 選今天班最少的人
-                    pool.sort((a, b) => {
-                        if(key === shift.tKey) return tHistory[a] - tHistory[b];
-                        const aLim = (limits[a] === shift.label) ? 0 : 1;
-                        const bLim = (limits[b] === shift.label) ? 0 : 1;
-                        return aLim - bLim || dayCount[a] - dayCount[b];
-                    });
-
-                    if(pool.length > 0) {
-                        const chosen = pool[0];
-                        result[key] = chosen;
-                        dayCount[chosen]++;
-                        shiftStaff.push(chosen);
-                    } else {
-                        result[key] = "缺";
-                    }
-                });
-            });
-
-            db[currentDay].shifts = result;
-            switchDay(currentDay);
-        }
-
-        window.onload = init;
+        window.onload = render;
     </script>
 </body>
 </html>

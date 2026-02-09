@@ -3,51 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>智能排班 V2.3 - 橫列清單版</title>
+    <title>智能排班 V2.4 - 請假點亮版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { background-color: #0b1120; color: #f1f5f9; font-family: system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
         .card { background-color: #1e293b; border-radius: 12px; padding: 0.75rem; border: 1px solid #334155; }
-        .day-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #334155; }
-        .slot { width: 14px; height: 14px; border-radius: 3px; border: 1px solid #475569; cursor: pointer; }
-        .slot.active { background-color: #38bdf8; border-color: #38bdf8; box-shadow: 0 0 8px rgba(56, 189, 248, 0.4); }
-        .shift-tag { font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; background: #0f172a; color: #94a3b8; min-width: 45px; text-align: center; }
-        .shift-tag.filled { color: #38bdf8; border: 1px solid #38bdf8/30; }
+        .slot { width: 16px; height: 16px; border-radius: 4px; border: 1px solid #475569; cursor: pointer; transition: 0.2s; }
+        /* 點亮代表請假 - 使用橘紅色 */
+        .slot.active { background-color: #fb7185; border-color: #fb7185; box-shadow: 0 0 8px rgba(251, 113, 133, 0.4); }
+        .shift-tag { font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; background: #0f172a; color: #94a3b8; min-width: 50px; text-align: center; border: 1px solid transparent; }
+        .shift-tag.filled { color: #38bdf8; border-color: #38bdf8; }
         .btn-magic { background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%); }
     </style>
 </head>
-<body class="p-4 pb-20">
+<body class="p-4 pb-24">
     <div class="max-w-md mx-auto space-y-4">
         
         <div class="flex justify-between items-end mb-4">
             <div>
-                <h1 class="text-xl font-black text-white italic tracking-tighter">LIST SCHEDULER V2.3</h1>
-                <p class="text-[9px] text-slate-500 font-bold uppercase">點選小格畫班：早 / 午 / 晚</p>
+                <h1 class="text-xl font-black text-white italic tracking-tighter">OFF-DUTY SCHEDULER</h1>
+                <p class="text-[9px] text-rose-400 font-bold uppercase">點亮小格 = 該時段請假</p>
             </div>
             <button onclick="autoFillAll()" class="btn-magic text-white text-[10px] font-black px-4 py-2 rounded-lg shadow-lg">
-                ✨ 一鍵填補全月空缺
+                ✨ 避開請假自動排班
             </button>
         </div>
 
-        <div class="flex gap-4 justify-center py-2 border-y border-slate-800 mb-2">
-            ${staffList.map(n => `<span class="text-[10px] font-bold text-slate-400">${n}</span>`).join('')}
-        </div>
-
-        <div id="list_container" class="space-y-1">
+        <div id="staff_header" class="flex gap-4 justify-around py-2 border-y border-slate-800 mb-2">
             </div>
 
+        <div id="list_container" class="space-y-2">
+            </div>
     </div>
 
-    <div class="fixed bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur-md p-3 border-t border-slate-700">
+    <div class="fixed bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur-md p-3 border-t border-slate-700 z-50">
         <div id="t_stats" class="max-w-md mx-auto flex justify-around text-[10px] font-black text-indigo-400"></div>
     </div>
 
     <script>
         const staffList = ["A", "B", "C", "D", "E"];
-        let db = JSON.parse(localStorage.getItem('monthly_schedule_v2.3')) || {};
+        let db = JSON.parse(localStorage.getItem('monthly_schedule_v2.4')) || {};
 
         function getDow(d) {
+            // 2026/2/1 是週日
             return ["日", "一", "二", "三", "四", "五", "六"][d % 7];
+        }
+
+        function initHeader() {
+            const header = document.getElementById('staff_header');
+            header.innerHTML = staffList.map(n => `<span class="text-[10px] font-bold text-slate-400">${n}</span>`).join('');
         }
 
         function render() {
@@ -56,30 +60,28 @@
 
             for (let d = 1; d <= 28; d++) {
                 const dow = getDow(d);
-                const dayData = db[d] || { userPicks: {}, finalShifts: {} };
+                const dayData = db[d] || { userOff: {}, finalShifts: {} };
                 
                 const row = document.createElement('div');
-                row.className = "card mb-2";
+                row.className = "card";
                 
                 let staffHtml = staffList.map(name => {
-                    const picks = dayData.userPicks[name] || [false, false, false];
+                    const offSlots = dayData.userOff[name] || [false, false, false];
                     return `
                         <div class="flex flex-col items-center gap-1">
-                            <span class="text-[9px] font-bold text-slate-500">${name}</span>
-                            <div class="flex flex-col gap-1">
-                                <div class="slot ${picks[0]?'active':''}" onclick="toggleSlot(${d}, '${name}', 0)"></div>
-                                <div class="slot ${picks[1]?'active':''}" onclick="toggleSlot(${d}, '${name}', 1)"></div>
-                                <div class="slot ${picks[2]?'active':''}" onclick="toggleSlot(${d}, '${name}', 2)"></div>
+                            <div class="flex flex-col gap-1.5">
+                                <div class="slot ${offSlots[0]?'active':''}" onclick="toggleOff(${d}, '${name}', 0)"></div>
+                                <div class="slot ${offSlots[1]?'active':''}" onclick="toggleOff(${d}, '${name}', 1)"></div>
+                                <div class="slot ${offSlots[2]?'active':''}" onclick="toggleOff(${d}, '${name}', 2)"></div>
                             </div>
                         </div>
                     `;
                 }).join('');
 
                 const shifts = dayData.finalShifts || {};
-                const isSat = dow === "週六";
 
                 row.innerHTML = `
-                    <div class="flex justify-between items-center mb-2 border-b border-slate-700/50 pb-2">
+                    <div class="flex justify-between items-center mb-2 border-b border-slate-700 pb-2">
                         <div class="flex items-center gap-2">
                             <span class="text-lg font-black ${dow==='六'?'text-rose-400':'text-white'}">${d}</span>
                             <span class="text-[10px] font-bold text-slate-500">${dow}</span>
@@ -90,7 +92,7 @@
                             <div class="shift-tag ${shifts['E']?'filled':''}">晚:${shifts['E']||'--'}</div>
                         </div>
                     </div>
-                    <div class="flex justify-between px-2">
+                    <div class="flex justify-around">
                         ${staffHtml}
                     </div>
                 `;
@@ -99,52 +101,45 @@
             updateTStats();
         }
 
-        function toggleSlot(day, name, slotIdx) {
-            if(!db[day]) db[day] = { userPicks: {}, finalShifts: {} };
-            if(!db[day].userPicks[name]) db[day].userPicks[name] = [false, false, false];
+        function toggleOff(day, name, slotIdx) {
+            if(!db[day]) db[day] = { userOff: {}, finalShifts: {} };
+            if(!db[day].userOff[name]) db[day].userOff[name] = [false, false, false];
             
-            db[day].userPicks[name][slotIdx] = !db[day].userPicks[name][slotIdx];
-            localStorage.setItem('monthly_schedule_v2.3', JSON.stringify(db));
+            db[day].userOff[name][slotIdx] = !db[day].userOff[name][slotIdx];
+            localStorage.setItem('monthly_schedule_v2.4', JSON.stringify(db));
             render();
         }
 
         function autoFillAll() {
             for(let d=1; d<=28; d++) {
-                const dow = getDow(d);
-                if(!db[d]) db[d] = { userPicks: {}, finalShifts: {} };
-                
-                let picks = db[d].userPicks;
+                if(!db[d]) db[d] = { userOff: {}, finalShifts: {} };
+                let userOff = db[d].userOff;
                 let dayCount = {};
                 staffList.forEach(n => dayCount[n] = 0);
 
-                // 統計玩家手動點亮的班
                 let results = { M: null, A: null, E: null };
-                staffList.forEach(n => {
-                    const p = picks[n] || [false, false, false];
-                    if(p[0]) { results.M = n; dayCount[n]++; }
-                    if(p[1]) { results.A = n; dayCount[n]++; }
-                    if(p[2]) { results.E = n; dayCount[n]++; }
-                });
+                const shiftIndices = { M: 0, A: 1, E: 2 };
 
-                // 填補剩下沒人的班 (簡易優先級：選今天班最少的人)
-                ["M", "A", "E"].forEach((shift, idx) => {
-                    if(!results[shift]) {
-                        let available = staffList.filter(n => {
-                            const p = picks[n] || [false, false, false];
-                            // 排除「全休」(三格都沒點的人視為全休)
-                            const isOff = p.every(v => v === false);
-                            return !isOff && dayCount[n] < 2;
-                        });
-                        available.sort((a, b) => dayCount[a] - dayCount[b]);
-                        if(available.length > 0) {
-                            results[shift] = available[0];
-                            dayCount[available[0]]++;
-                        }
+                // 填補早、午、晚
+                ["M", "A", "E"].forEach(sKey => {
+                    let sIdx = shiftIndices[sKey];
+                    // 尋找此時段沒有請假(false)的人
+                    let available = staffList.filter(name => {
+                        const off = userOff[name] || [false, false, false];
+                        return off[sIdx] === false && dayCount[name] < 2;
+                    });
+
+                    // 公平排序：選今天班最少，且本月總班數較少的人
+                    available.sort((a, b) => dayCount[a] - dayCount[b]);
+
+                    if(available.length > 0) {
+                        results[sKey] = available[0];
+                        dayCount[available[0]]++;
                     }
                 });
                 db[d].finalShifts = results;
             }
-            localStorage.setItem('monthly_schedule_v2.3', JSON.stringify(db));
+            localStorage.setItem('monthly_schedule_v2.4', JSON.stringify(db));
             render();
         }
 
@@ -158,7 +153,7 @@
             document.getElementById('t_stats').innerHTML = staffList.map(n => `<span>${n}: ${counts[n]}班</span>`).join('');
         }
 
-        window.onload = render;
+        window.onload = () => { initHeader(); render(); };
     </script>
 </body>
 </html>

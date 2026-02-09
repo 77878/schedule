@@ -3,50 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>智能排班系統 V1.0</title>
+    <title>智能排班系統 V1.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background-color: #0b1120; color: #f1f5f9; font-family: system-ui, sans-serif; }
+        body { background-color: #0b1120; color: #f1f5f9; font-family: system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
         .card { background-color: #1e293b; border-radius: 16px; padding: 1rem; border: 1px solid #334155; }
         select { 
             background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 6px; 
-            color: #38bdf8; width: 100%; font-weight: bold; appearance: none;
+            color: #38bdf8; width: 100%; font-weight: bold; appearance: none; font-size: 0.9rem;
         }
-        .status-pill { font-size: 0.7rem; padding: 2px 8px; rounded: 99px; }
-        .warning { color: #f87171; font-weight: bold; animation: pulse 2s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .btn-magic {
+            background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+            box-shadow: 0 4px 15px rgba(56, 189, 248, 0.2);
+        }
+        .btn-magic:active { transform: scale(0.95); }
+        .warning { color: #f87171; font-weight: bold; }
     </style>
 </head>
 <body class="p-4 pb-12">
     <div class="max-w-md mx-auto space-y-4">
         
-        <div class="flex justify-between items-end">
+        <div class="flex justify-between items-start">
             <div>
                 <h1 class="text-2xl font-black text-white">排班戰情室</h1>
-                <p class="text-xs text-slate-400">零售餐飲專用模組</p>
+                <p id="global_status" class="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">系統運行正常</p>
             </div>
-            <div class="text-right">
-                <span class="block text-[10px] text-slate-500 font-bold uppercase">今日狀態</span>
-                <span id="global_status" class="text-emerald-400 font-bold">符合規範</span>
-            </div>
+            <button onclick="autoSchedule()" class="btn-magic text-white text-[10px] font-black px-4 py-2 rounded-xl uppercase italic">
+                ✨ 自動排班
+            </button>
         </div>
 
         <div class="card">
-            <h2 class="text-[10px] font-black text-blue-400 uppercase italic mb-3">當前請假/不克參加</h2>
-            <div class="flex gap-2 overflow-x-auto pb-2" id="leave_toggles">
-                </div>
+            <h2 class="text-[10px] font-black text-blue-400 uppercase italic mb-3">今日公休人員 (點擊切換)</h2>
+            <div class="flex gap-2 overflow-x-auto pb-1" id="leave_toggles"></div>
         </div>
 
-        <div class="space-y-3">
+        <div class="space-y-3" id="shift_container">
             <div class="card border-l-4 border-l-sky-500">
                 <div class="flex justify-between items-center mb-2">
                     <span class="font-black text-sky-400">早班 (MORNING)</span>
                     <span class="text-[10px] text-slate-500">08:00 - 12:00</span>
                 </div>
                 <div class="grid grid-cols-3 gap-2">
-                    <div><label class="text-[9px] text-slate-500">櫃台 (A)</label><select id="shift_1_A" onchange="validate()"></select></div>
-                    <div><label class="text-[9px] text-slate-500">內場 (B)</label><select id="shift_1_B" onchange="validate()"></select></div>
-                    <div><label class="text-[9px] text-slate-500">外場 (T)</label><select id="shift_1_T" onchange="validate()"></select></div>
+                    <div><label class="text-[9px] text-slate-500">櫃台 (A)</label><select id="s1_A" onchange="validate()"></select></div>
+                    <div><label class="text-[9px] text-slate-500">內場 (B)</label><select id="s1_B" onchange="validate()"></select></div>
+                    <div><label class="text-[9px] text-slate-500">外場 (T)</label><select id="s1_T" onchange="validate()"></select></div>
                 </div>
             </div>
 
@@ -56,9 +57,9 @@
                     <span class="text-[10px] text-slate-500">12:00 - 17:00</span>
                 </div>
                 <div class="grid grid-cols-3 gap-2">
-                    <div><label class="text-[9px] text-slate-500">櫃台 (A)</label><select id="shift_2_A" onchange="validate()"></select></div>
-                    <div><label class="text-[9px] text-slate-500">內場 (B)</label><select id="shift_2_B" onchange="validate()"></select></div>
-                    <div><label class="text-[9px] text-slate-500">外場 (T)</label><select id="shift_2_T" onchange="validate()"></select></div>
+                    <div><label class="text-[9px] text-slate-500">櫃台 (A)</label><select id="s2_A" onchange="validate()"></select></div>
+                    <div><label class="text-[9px] text-slate-500">內場 (B)</label><select id="s2_B" onchange="validate()"></select></div>
+                    <div><label class="text-[9px] text-slate-500">外場 (T)</label><select id="s2_T" onchange="validate()"></select></div>
                 </div>
             </div>
 
@@ -68,61 +69,100 @@
                     <span class="text-[10px] text-slate-500">17:00 - 22:00</span>
                 </div>
                 <div class="grid grid-cols-3 gap-2">
-                    <div><label class="text-[9px] text-slate-500">櫃台 (A)</label><select id="shift_3_A" onchange="validate()"></select></div>
-                    <div><label class="text-[9px] text-slate-500">內場 (B)</label><select id="shift_3_B" onchange="validate()"></select></div>
-                    <div><label class="text-[9px] text-slate-500">外場 (T)</label><select id="shift_3_T" onchange="validate()"></select></div>
+                    <div><label class="text-[9px] text-slate-500">櫃台 (A)</label><select id="s3_A" onchange="validate()"></select></div>
+                    <div><label class="text-[9px] text-slate-500">內場 (B)</label><select id="s3_B" onchange="validate()"></select></div>
+                    <div><label class="text-[9px] text-slate-500">外場 (T)</label><select id="s3_T" onchange="validate()"></select></div>
                 </div>
             </div>
         </div>
 
         <div id="alert_panel" class="card bg-red-900/10 border-red-500/30 hidden">
-            <h3 class="text-[10px] font-black text-red-400 italic mb-2">⚠ 排班衝突警報</h3>
-            <ul id="alert_list" class="text-xs space-y-1 text-red-300"></ul>
+            <ul id="alert_list" class="text-[11px] space-y-1 text-red-400 font-bold"></ul>
         </div>
 
         <div class="card">
-            <h3 class="text-[10px] font-black text-slate-400 italic mb-3">今日工時概覽 (班次數)</h3>
-            <div id="stats_panel" class="flex justify-between">
-                </div>
+            <h3 class="text-[10px] font-black text-slate-400 italic mb-3">今日排班次數統計 (上限 2)</h3>
+            <div id="stats_panel" class="flex justify-between"></div>
         </div>
-
     </div>
 
     <script>
-        const staff = ["無", "員工1", "員工2", "員工3", "員工4", "員工5"];
+        const staffList = ["員工A", "員工B", "員工C", "員工D", "員工E"];
         const leaves = new Set();
+        const selectIds = ["s1_A", "s1_B", "s1_T", "s2_A", "s2_B", "s2_T", "s3_A", "s3_B", "s3_T"];
 
         function init() {
-            // 初始化下拉選單
-            const selects = document.querySelectorAll('select');
-            selects.forEach(s => {
-                staff.forEach(name => {
+            selectIds.forEach(id => {
+                const s = document.getElementById(id);
+                const noneOpt = document.createElement('option');
+                noneOpt.value = "無"; noneOpt.innerText = "無";
+                s.appendChild(noneOpt);
+                staffList.forEach(name => {
                     const opt = document.createElement('option');
-                    opt.value = name;
-                    opt.innerText = name;
+                    opt.value = name; opt.innerText = name;
                     s.appendChild(opt);
                 });
             });
 
-            // 初始化假表切換按鈕
             const leaveBox = document.getElementById('leave_toggles');
-            staff.slice(1).forEach(name => {
+            staffList.forEach(name => {
                 const btn = document.createElement('button');
+                btn.id = `btn_${name}`;
                 btn.innerText = name;
-                btn.className = "px-3 py-1 rounded-lg bg-slate-800 text-[10px] font-bold border border-slate-700 flex-shrink-0";
-                btn.onclick = () => {
-                    if(leaves.has(name)) {
-                        leaves.delete(name);
-                        btn.classList.replace('bg-red-500/20', 'bg-slate-800');
-                        btn.classList.replace('border-red-500', 'border-slate-700');
-                    } else {
-                        leaves.add(name);
-                        btn.classList.replace('bg-slate-800', 'bg-red-500/20');
-                        btn.classList.replace('border-slate-700', 'border-red-500');
-                    }
-                    validate();
-                };
+                btn.className = "px-3 py-1 rounded-lg bg-slate-800 text-[10px] font-bold border border-slate-700 flex-shrink-0 transition-all";
+                btn.onclick = () => toggleLeave(name);
                 leaveBox.appendChild(btn);
+            });
+            validate();
+        }
+
+        function toggleLeave(name) {
+            const btn = document.getElementById(`btn_${name}`);
+            if(leaves.has(name)) {
+                leaves.delete(name);
+                btn.classList.remove('bg-red-500/20', 'border-red-500', 'text-red-400');
+                btn.classList.add('bg-slate-800', 'border-slate-700');
+            } else {
+                leaves.add(name);
+                btn.classList.add('bg-red-500/20', 'border-red-500', 'text-red-400');
+                btn.classList.remove('bg-slate-800', 'border-slate-700');
+            }
+            validate();
+        }
+
+        function autoSchedule() {
+            // 獲取目前沒請假的人員並隨機打亂
+            let available = staffList.filter(name => !leaves.has(name));
+            if (available.length < 3) {
+                alert("在場人員不足 3 人，無法完成排班！");
+                return;
+            }
+
+            const countMap = {};
+            available.forEach(n => countMap[n] = 0);
+
+            // 定義班次組別
+            const shifts = [
+                ["s1_A", "s1_B", "s1_T"], // 早班
+                ["s2_A", "s2_B", "s2_T"], // 午班
+                ["s3_A", "s3_B", "s3_T"]  // 晚班
+            ];
+
+            shifts.forEach(group => {
+                let pool = [...available].sort(() => Math.random() - 0.5);
+                let selectedForShift = [];
+
+                group.forEach(id => {
+                    // 挑選今天上最少班，且這班還沒上的人
+                    const candidate = pool.find(n => !selectedForShift.includes(n) && countMap[n] < 2);
+                    if (candidate) {
+                        document.getElementById(id).value = candidate;
+                        countMap[candidate]++;
+                        selectedForShift.push(candidate);
+                    } else {
+                        document.getElementById(id).value = "無";
+                    }
+                });
             });
             validate();
         }
@@ -130,31 +170,25 @@
         function validate() {
             const alerts = [];
             const countMap = {};
-            staff.slice(1).forEach(name => countMap[name] = 0);
+            staffList.forEach(n => countMap[n] = 0);
 
-            const selects = document.querySelectorAll('select');
-            selects.forEach(s => {
+            selectIds.forEach(id => {
+                const s = document.getElementById(id);
                 const val = s.value;
+                s.style.borderColor = "#475569";
                 if(val !== "無") {
                     countMap[val]++;
-                    // 檢查是否請假中
                     if(leaves.has(val)) {
-                        alerts.push(`🚫 ${val} 今日請假中，不可排班`);
+                        alerts.push(`🚫 ${val} 請假中卻被排入 ${id.replace('s','班次').replace('_','-')}`);
                         s.style.borderColor = "#ef4444";
-                    } else {
-                        s.style.borderColor = "#475569";
                     }
                 }
             });
 
-            // 檢查單人雙班限制
-            staff.slice(1).forEach(name => {
-                if(countMap[name] > 2) {
-                    alerts.push(`⚠️ ${name} 超量：今日已排 ${countMap[name]} 個班 (上限 2)`);
-                }
+            staffList.forEach(name => {
+                if(countMap[name] > 2) alerts.push(`⚠️ ${name} 負擔過重：已排 ${countMap[name]} 班`);
             });
 
-            // 更新警報顯示
             const alertPanel = document.getElementById('alert_panel');
             const alertList = document.getElementById('alert_list');
             const globalStatus = document.getElementById('global_status');
@@ -162,17 +196,16 @@
             if(alerts.length > 0) {
                 alertPanel.classList.remove('hidden');
                 alertList.innerHTML = alerts.map(a => `<li>${a}</li>`).join('');
-                globalStatus.innerText = "違反規範";
-                globalStatus.className = "text-red-400 font-bold animate-pulse";
+                globalStatus.innerText = "⚠ 發現排班衝突";
+                globalStatus.className = "text-red-400 font-bold uppercase tracking-widest";
             } else {
                 alertPanel.classList.add('hidden');
-                globalStatus.innerText = "符合規範";
-                globalStatus.className = "text-emerald-400 font-bold";
+                globalStatus.innerText = "系統運行正常";
+                globalStatus.className = "text-emerald-400 font-bold uppercase tracking-widest";
             }
 
-            // 更新統計
             const statsPanel = document.getElementById('stats_panel');
-            statsPanel.innerHTML = staff.slice(1).map(name => `
+            statsPanel.innerHTML = staffList.map(name => `
                 <div class="text-center">
                     <p class="text-[9px] text-slate-500">${name}</p>
                     <p class="font-black ${countMap[name]>2?'text-red-500':'text-white'}">${countMap[name]}</p>
